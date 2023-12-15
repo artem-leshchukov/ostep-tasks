@@ -84,3 +84,34 @@ void lock(lock_t* mutex)
 }
 
 // ----------
+
+typedef struct {
+	int ticket;
+	int turn;
+} lock_t;
+
+void init(lock_t* lock)
+{
+	lock->ticket = 0;
+	lock->turn = 0;
+}
+
+int FetchAndAdd(int* ptr)
+{
+	int val = *ptr;
+	*ptr = val + 1;
+	return val;
+}
+
+void lock(lock_t* lock)
+{
+	int myturn = FetchAndAdd(&lock->ticket);
+	while (lock->turn != myturn)		// wait until our turn
+		;
+}
+
+void unlock(lock_t* lock)
+{
+	lock->turn = lock->turn + 1;		// turn goes on to the next
+}
+
