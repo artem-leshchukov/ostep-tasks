@@ -73,3 +73,49 @@ int main()
 	free(c);
 	return 0;
 }
+
+// Approximate Counter (a Scalable(!) one)
+typedef struct {
+	int global;							// global counter value
+	pthread_mutex_t glock;				// a lock for global counter
+	int local[NUMCPU];					// local counter values (one per CPU)
+	pthread_mutex_t llock[NUMCPU];		// locks for local counters (one per CPU)
+	int threshold;						// update frequency
+} counter_t;
+
+void init(counter_t* c, int threshold)
+{
+	c->threshold = threshold;
+	
+	c->global = 0;
+	pthread_mutex_init(&c->glock, NULL);
+	for (int i = 0; i < NUMCPU; ++i)
+	{
+		c->local[i] = 0;
+		pthread_mutex_init(&c->llock[i], NULL);
+	}
+}
+
+void update(counter_t* c, int threadID, int value)
+{
+	int cpu = threadID % NUMCPU;
+	pthread_mutex_lock(&c->llock[cpu], NULL);
+	c->local[cpu] += value;							// add to deal with local counter
+	if (c->local[cpu] >= c->threshold)				// if local counter has reached the threshold value
+	{												// move this value to the global one
+		pthread_mutex_lock(&c->glock, NULL);
+		c->global += c->local[cpu];
+		pthread_mutex_unlock(&c->glock);
+		c->local[cpu] = 0;
+	}
+	pthread_mutex_unlock(&c->llock[cpu]);
+}
+
+int get(counter_t* c)								// get the value from global counter (it may be inaccurate)
+{
+	pthread_mutex_lock(&c->glock, NULL);
+	int val = c->global;
+	pthread_mutex_unlock(&c->glock);
+	return val;
+}
+
